@@ -17,8 +17,10 @@ bool bWarmUp;
 // Cvar
 ConVar Cvar_Snow;
 ConVar Cvar_Freeze;
+ConVar Cvar_Volume;
 bool bSnow;
 bool bFreeze;
+float fVolume;
 
 #define IceModel "models/weapons/eminem/ice_cube/ice_cube.mdl"
 
@@ -48,6 +50,9 @@ public void OnPluginStart()
 	Cvar_Freeze = CreateConVar("sm_ice_freezetime", "1", "Make player in ice when freezetime?");
 	Cvar_Freeze.AddChangeHook(OnConVarChanged);
 	
+	Cvar_Volume = CreateConVar("sm_ice_volume", "0.5", "How loud should the ice sound?");
+	Cvar_Volume.AddChangeHook(OnConVarChanged);
+	
 	AutoExecConfig(true, "kento_ice");
 }
 
@@ -55,12 +60,14 @@ public void OnConfigsExecuted()
 {
 	bSnow = Cvar_Snow.BoolValue;
 	bFreeze = Cvar_Freeze.BoolValue;
+	fVolume = Cvar_Volume.FloatValue;
 }
 
 public void OnConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
 	if(convar == Cvar_Snow)	bSnow = Cvar_Snow.BoolValue;
 	else if(convar == Cvar_Freeze)	bFreeze = Cvar_Freeze.BoolValue;
+	else if(convar == Cvar_Volume)	fVolume = Cvar_Volume.FloatValue;
 }
 
 public void OnClientPutInServer(int client)
@@ -325,7 +332,7 @@ public Action SoundTimer(Handle timer, int client)
 {
 	float vec[3];
 	GetClientEyePosition(client, vec);
-	EmitAmbientSound(g_FreezeSound, vec, client, SNDLEVEL_RAIDSIREN);
+	EmitAmbientSound(g_FreezeSound, vec, client, SNDLEVEL_RAIDSIREN, _, fVolume);
 }
 
 // Code taken from my friend
