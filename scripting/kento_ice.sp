@@ -11,6 +11,8 @@ bool bAdminFreeze[MAXPLAYERS + 1];
 
 Handle hIcetimer[MAXPLAYERS + 1] = {INVALID_HANDLE, ...};
 Handle hSoundtimer[MAXPLAYERS + 1] = {INVALID_HANDLE, ...};
+Handle g_hOnClientFreeze;
+Handle g_hOnClientUnFreeze;
 
 bool bWarmUp;
 
@@ -62,6 +64,92 @@ public void OnConfigsExecuted()
 	bFreeze = Cvar_Freeze.BoolValue;
 	fVolume = Cvar_Volume.FloatValue;
 }
+
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
+{
+	CreateNative("kento_ice_SetClientFreeze", Native_SetClientFreeze);
+	CreateNative("kento_ice_RemoveClientFreeze", Native_RemoveClientFreeze);
+	CreateNative("kento_ice_IsClientFreeze", Native_IsClientFreeze);
+	
+	
+	g_hOnClientFreeze = CreateGlobalForward("kento_ice_OnClientFreeze_Post", ET_Event, Param_Cell, Param_Cell);
+	g_hOnClientUnFreeze = CreateGlobalForward("kento_ice_OnClientUnFreeze_Post", ET_Event, Param_Cell, Param_Cell);
+
+	RegPluginLibrary("kento_ice");
+	
+	return APLRes_Success;
+}
+
+public int Native_SetClientFreeze(Handle plugin, int numParams)
+{
+	int client = GetNativeCell(1);
+	if (!IsValidClient(client))
+	{
+		PrintToServer("Invalid client (%d)", client);
+		return;
+	}
+	if(!IsPlayerAlive(client))
+	{
+		PrintToServer("client not Alive (%d)", client);
+		return;
+	}
+	int seconds = GetNativeCell(2);
+	FreezeOrUnFreezeClient(client,true ,seconds);
+	
+}
+
+
+public int Native_RemoveClientFreeze(Handle plugin, int numParams)
+{
+	int client = GetNativeCell(1);
+	if (!IsValidClient(client))
+	{
+		PrintToServer("Invalid client (%d)", client);
+		return;
+	}
+	FreezeOrUnFreezeClient(client,false,-1);
+}
+
+
+void FreezeOrUnFreezeClient(int client,bool freeze ,int seconds)
+{
+	if(freeze)
+	{
+		if(seconds <= 1) seconds = 1;
+		
+		CreateIce(client, seconds);
+		CreateSnow(client);
+		bAdminFreeze[client] = true;
+		
+		Call_StartForward(g_hOnClientFreeze);
+		Call_PushCell(client);
+		Call_PushCell(seconds);
+		Call_Finish();
+	}
+	else 
+	{
+		bAdminFreeze[client] = false;
+		UnFreeze(client);
+		SnowOff(client);
+		
+		Call_StartForward(g_hOnClientUnFreeze);
+		Call_PushCell(client);
+		Call_Finish();
+	}
+	
+}
+
+public int Native_IsClientFreeze(Handle plugin, int numParams)
+{
+	int client = GetNativeCell(1);
+	if (!IsValidClient(client))
+	{
+		PrintToServer("Invalid client (%d)", client);
+		return false;
+	}
+	return view_as<bool>(bAdminFreeze[client]);
+}
+
 
 public void OnConVarChanged(ConVar convar, const char[] oldValue, const char[] newValue)
 {
@@ -120,7 +208,7 @@ public Action CMD_Ice(int client, int args)
 			ReplyToCommand(client, "[SM] Usage: sm_ice <#userid|name> [time]");
 			return Plugin_Handled;
 		}
-	
+		
 		char arg[65];
 		GetCmdArg(1, arg, sizeof(arg));
 		
@@ -136,20 +224,20 @@ public Action CMD_Ice(int client, int args)
 				return Plugin_Handled;
 			}
 		}	
-	
+		
 		char target_name[MAX_TARGET_LENGTH];
 		int target_list[MAXPLAYERS], target_count;
 		bool tn_is_ml;
 		
 		if ((target_count = ProcessTargetString(
-				arg,
-				client,
-				target_list,
-				MAXPLAYERS,
-				COMMAND_FILTER_ALIVE,
-				target_name,
-				sizeof(target_name),
-				tn_is_ml)) <= 0)
+		arg,
+		client,
+		target_list,
+		MAXPLAYERS,
+		COMMAND_FILTER_ALIVE,
+		target_name,
+		sizeof(target_name),
+		tn_is_ml)) <= 0)
 		{
 			ReplyToTargetError(client, target_count);
 			return Plugin_Handled;
@@ -186,7 +274,7 @@ public Action CMD_UnIce(int client, int args)
 			ReplyToCommand(client, "[SM] Usage: sm_ice <#userid|name> [time]");
 			return Plugin_Handled;
 		}
-	
+		
 		char arg[65];
 		GetCmdArg(1, arg, sizeof(arg));
 		
@@ -195,14 +283,14 @@ public Action CMD_UnIce(int client, int args)
 		bool tn_is_ml;
 		
 		if ((target_count = ProcessTargetString(
-				arg,
-				client,
-				target_list,
-				MAXPLAYERS,
-				COMMAND_FILTER_ALIVE,
-				target_name,
-				sizeof(target_name),
-				tn_is_ml)) <= 0)
+		arg,
+		client,
+		target_list,
+		MAXPLAYERS,
+		COMMAND_FILTER_ALIVE,
+		target_name,
+		sizeof(target_name),
+		tn_is_ml)) <= 0)
 		{
 			ReplyToTargetError(client, target_count);
 			return Plugin_Handled;
@@ -287,14 +375,14 @@ void CreateIce(int client, int time)
 	DispatchKeyValue(model, "spawnflags", "256");
 	DispatchKeyValue(model, "solid", "0");
 	SetEntPropEnt(model, Prop_Send, "m_hOwnerEntity", client);
-		
+	
 	//SetEntProp(model, Prop_Data, "m_CollisionGroup", 0);  
 	
 	DispatchSpawn(model);	
 	TeleportEntity(model, pos, NULL_VECTOR, NULL_VECTOR); 
 	
 	AcceptEntityInput(model, "TurnOn", model, model, 0);
-		
+	
 	SetVariantString("!activator");
 	AcceptEntityInput(model, "SetParent", client, model, 0);
 	
@@ -363,13 +451,13 @@ void CreateSnow(int client)
 	
 	DispatchSpawn(ent);
 	ActivateEntity(ent);
-		
+	
 	eyePosition[2] += 50;
 	TeleportEntity(ent, eyePosition, NULL_VECTOR, NULL_VECTOR);
-		
+	
 	SetVariantString("!activator");
 	AcceptEntityInput(ent, "SetParent", client);
-		
+	
 	AcceptEntityInput(ent, "TurnOn");
 	
 	SnowRef[client] = EntIndexToEntRef(ent);
@@ -429,4 +517,3 @@ stock bool IsValidClient(int client)
 	if (!IsClientConnected(client)) return false;
 	return IsClientInGame(client);
 }
-
