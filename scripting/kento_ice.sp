@@ -73,7 +73,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	
 	
 	g_hOnClientFreeze = CreateGlobalForward("kento_ice_OnClientFreeze_Post", ET_Event, Param_Cell, Param_Cell);
-	g_hOnClientUnFreeze = CreateGlobalForward("kento_ice_OnClientUnFreeze_Post", ET_Event, Param_Cell, Param_Cell);
+	g_hOnClientUnFreeze = CreateGlobalForward("kento_ice_OnClientUnFreeze_Post", ET_Event, Param_Cell);
 
 	RegPluginLibrary("kento_ice");
 	
