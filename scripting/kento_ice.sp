@@ -8,6 +8,7 @@ int IceRef[MAXPLAYERS + 1];
 int SnowRef[MAXPLAYERS + 1];
 char g_FreezeSound[PLATFORM_MAX_PATH];
 bool bAdminFreeze[MAXPLAYERS + 1];
+bool allowFreeze[MAXPLAYERS + 1] = {true, ...};
 
 Handle hIcetimer[MAXPLAYERS + 1] = {INVALID_HANDLE, ...};
 Handle hSoundtimer[MAXPLAYERS + 1] = {INVALID_HANDLE, ...};
@@ -364,41 +365,44 @@ public Action Event_RoundFreezeEnd(Handle event, const char[] name, bool dontBro
 
 void CreateIce(int client, int time)
 {
-	SetEntityMoveType(client, MOVETYPE_NONE);
-	
-	float pos[3];
-	GetClientAbsOrigin(client, pos);
-	
-	int model = CreateEntityByName("prop_dynamic_override");
-	
-	DispatchKeyValue(model, "model", IceModel);
-	DispatchKeyValue(model, "spawnflags", "256");
-	DispatchKeyValue(model, "solid", "0");
-	SetEntPropEnt(model, Prop_Send, "m_hOwnerEntity", client);
-	
-	//SetEntProp(model, Prop_Data, "m_CollisionGroup", 0);  
-	
-	DispatchSpawn(model);	
-	TeleportEntity(model, pos, NULL_VECTOR, NULL_VECTOR); 
-	
-	AcceptEntityInput(model, "TurnOn", model, model, 0);
-	
-	SetVariantString("!activator");
-	AcceptEntityInput(model, "SetParent", client, model, 0);
-	
-	IceRef[client] = EntIndexToEntRef(model);
-	
-	// has unfreeze time
-	if(time > 0)
+	if( allowFreeze[client] )
 	{
-		float ftime = IntToFloat(time);
-		hIcetimer[client] = CreateTimer(ftime, UnIceTimer, client);
-	}
-	
-	// create sound timer
-	if (g_FreezeSound[0])
-	{
-		hSoundtimer[client] = CreateTimer(1.0, SoundTimer, client, TIMER_REPEAT);
+		SetEntityMoveType(client, MOVETYPE_NONE);
+		
+		float pos[3];
+		GetClientAbsOrigin(client, pos);
+		
+		int model = CreateEntityByName("prop_dynamic_override");
+		
+		DispatchKeyValue(model, "model", IceModel);
+		DispatchKeyValue(model, "spawnflags", "256");
+		DispatchKeyValue(model, "solid", "0");
+		SetEntPropEnt(model, Prop_Send, "m_hOwnerEntity", client);
+		
+		//SetEntProp(model, Prop_Data, "m_CollisionGroup", 0);  
+		
+		DispatchSpawn(model);	
+		TeleportEntity(model, pos, NULL_VECTOR, NULL_VECTOR); 
+		
+		AcceptEntityInput(model, "TurnOn", model, model, 0);
+		
+		SetVariantString("!activator");
+		AcceptEntityInput(model, "SetParent", client, model, 0);
+		allowFreeze[client] = false;
+		IceRef[client] = EntIndexToEntRef(model);
+		
+		// has unfreeze time
+		if(time > 0)
+		{
+			float ftime = IntToFloat(time);
+			hIcetimer[client] = CreateTimer(ftime, UnIceTimer, client);
+		}
+		
+		// create sound timer
+		if (g_FreezeSound[0])
+		{
+			hSoundtimer[client] = CreateTimer(1.0, SoundTimer, client, TIMER_REPEAT);
+		}
 	}
 }
 
@@ -469,7 +473,7 @@ void UnFreeze(int client)
 	if(bAdminFreeze[client])	return;
 	
 	SetEntityMoveType(client, MOVETYPE_WALK);
-	
+	allowFreeze[client] = true;
 	int entity = EntRefToEntIndex(IceRef[client]);
 	if(entity != INVALID_ENT_REFERENCE && IsValidEdict(entity) && entity != 0)
 	{
